@@ -17,10 +17,10 @@ class SkillLevel(str, Enum):
     ADVANCED = "Advanced"
 
 # ========== AUTH - Devang owns ==========
-class UserSync(BaseModel):
-    supabase_id: str
-    email: str
-    full_name: str = None
+# class UserSync(BaseModel):
+#     supabase_id: str
+#     email: str
+#     full_name: str = None
 
 class UserSyncRequest(BaseModel):
     """Frontend sends this AFTER supabase login to create profile in your DB"""
