@@ -53,7 +53,7 @@ def parse_with_groq(resume_text: str) -> dict:
     """
 
     completion = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="qwen/qwen3.6-27b",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
         response_format={"type": "json_object"}
