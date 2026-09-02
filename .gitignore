@@ -2,5 +2,5 @@
 .venv/
 __pycache__/
 *.pyc
-Miscellanious
+Misc
 get_token.py
