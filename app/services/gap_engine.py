@@ -1,65 +1,40 @@
-import json
 from typing import List, Dict
-from app.core.groq_client import get_groq_client
+from app.models.schemas import SkillGap, SkillLevel
 
-# Fallback DB if Groq fails
-ROLE_SKILLS_DB = {
-    "SDE": ["Python", "DSA", "OOPs", "SQL", "Git", "REST APIs", "System Design", "Operating System", "DBMS"],
-    "Data Science": ["Python", "SQL", "Pandas", "NumPy", "Machine Learning", "Statistics", "Data Visualization"],
-    "AI/ML Engineer": ["Python", "Machine Learning", "PyTorch", "TensorFlow", "NLP", "LangChain", "Groq"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Node.js", "FastAPI", "PostgreSQL", "Git"],
-    "Other": ["Python", "Communication", "Problem Solving", "Git", "SQL"]
+ROLE_SKILLS_MAP = {
+    "SDE": ["Python", "DSA", "OOPs", "SQL", "Git", "REST APIs", "System Design"],
+    "Data Science": ["Python", "SQL", "Pandas", "Machine Learning", "Statistics", "Data Visualization"],
+    "AI/ML Engineer": ["Python", "Machine Learning", "PyTorch", "TensorFlow", "NLP", "Groq", "LangChain"],
+    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "FastAPI", "PostgreSQL", "Git"],
+    "Other": ["Python", "Communication", "Problem Solving"]
 }
 
 def get_required_skills(target_role: str, custom_skills: List[str] = None) -> List[str]:
-    if custom_skills and len(custom_skills) > 0:
+    if custom_skills:
         return custom_skills
-    role_str = target_role.value if hasattr(target_role, 'value') else str(target_role)
-    return ROLE_SKILLS_DB.get(role_str, ROLE_SKILLS_DB["Other"])
+    return ROLE_SKILLS_MAP.get(target_role, ROLE_SKILLS_MAP["Other"])
 
 def calculate_match_score(user_skills: List[str], required_skills: List[str]) -> Dict:
-    """
-    Returns only matched_skills and missing_skills
-    Uses GROQ_API_KEY from.env
-    """
-    client = get_groq_client()
+    user_map = {s.lower(): s for s in user_skills}
+    user_lower_set = set(user_map.keys())
 
-    prompt = f"""
-    You are a skill gap analyzer.
-    User skills from resume: {user_skills}
-    Required skills for role: {required_skills}
+    matched = []
+    missing = []
+    gaps: List[SkillGap] = []
 
-    Compare them case-insensitively.
-    Return ONLY valid JSON with this exact format:
-    {{
-      "matched_skills": ["skills user already has"],
-      "missing_skills": ["skills user lacks"]
-    }}
-    """
+    for req in required_skills:
+        if req.lower() in user_lower_set:
+            matched.append(req)
+            gaps.append(SkillGap(skill=req, status="matched", level=SkillLevel.INTERMEDIATE))
+        else:
+            missing.append(req)
+            gaps.append(SkillGap(skill=req, status="missing", level=SkillLevel.BEGINNER))
 
-    try:
-        completion = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
+    score = int((len(matched) / len(required_skills) * 100)) if required_skills else 0
 
-        data = json.loads(completion.choices[0].message.content)
-
-        return {
-            "matched_skills": data.get("matched_skills", []),
-            "missing_skills": data.get("missing_skills", [])
-        }
-
-    except Exception as e:
-        print(f"Groq failed, fallback: {e}")
-        # Simple fallback
-        user_lower = set([s.lower().strip() for s in user_skills])
-        matched = [r for r in required_skills if r.lower().strip() in user_lower]
-        missing = [r for r in required_skills if r.lower().strip() not in user_lower]
-
-        return {
-            "matched_skills": matched,
-            "missing_skills": missing
-        }
+    return {
+        "match_score": score,
+        "matched_skills": matched,
+        "missing_skills": missing,
+        "gaps": gaps
+    }

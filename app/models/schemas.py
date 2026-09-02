@@ -17,6 +17,11 @@ class SkillLevel(str, Enum):
     ADVANCED = "Advanced"
 
 # ========== AUTH - Devang owns ==========
+# class UserSync(BaseModel):
+#     supabase_id: str
+#     email: str
+#     full_name: str = None
+
 class UserSyncRequest(BaseModel):
     """Frontend sends this AFTER supabase login to create profile in your DB"""
     supabase_id: str = Field(description="Comes from supabase.auth.getUser().id")
@@ -72,7 +77,7 @@ class AnalysisResponse(BaseModel):
     missing_skills: List[str]
     gaps: List[SkillGap]
     summary: str = Field(description="AI summary by Groq")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime=Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # ========== ROADMAP - Navneet owns ==========
 class RoadmapStep(BaseModel):
@@ -93,7 +98,7 @@ class RoadmapResponse(BaseModel):
     target_role: TargetRole
     roadmap: List[RoadmapStep]
     total_estimated_days: int
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime=Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # ========== INTERNSHIPS - Navneet owns ==========
 class Internship(BaseModel):
