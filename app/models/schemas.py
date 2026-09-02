@@ -72,7 +72,7 @@ class AnalysisResponse(BaseModel):
     missing_skills: List[str]
     gaps: List[SkillGap]
     summary: str = Field(description="AI summary by Groq")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime=Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # ========== ROADMAP - Navneet owns ==========
 class RoadmapStep(BaseModel):
@@ -93,7 +93,7 @@ class RoadmapResponse(BaseModel):
     target_role: TargetRole
     roadmap: List[RoadmapStep]
     total_estimated_days: int
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime=Field(default_factory=lambda: datetime.now(timezone.utc))
 
 # ========== INTERNSHIPS - Navneet owns ==========
 class Internship(BaseModel):
