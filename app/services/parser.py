@@ -36,15 +36,12 @@ def parse_with_groq(resume_text: str) -> dict:
     {resume_text_clean[:6000]}
     """
 
-    data = None
-    try:
-        completion = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        raw = completion.choices[0].message.content.strip()
-        print("RAW GROQ:", raw[:1000])
+    completion = client.chat.completions.create(
+        model="qwen/qwen3.6-27b",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        response_format={"type": "json_object"}
+    )
 
         # Extract first {... } using json decoder
         from json import JSONDecoder
