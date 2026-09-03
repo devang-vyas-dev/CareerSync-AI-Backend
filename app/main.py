@@ -11,7 +11,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://careersync-ai-blond.vercel.app"],
+    allow_origins=["https://careersync-ai-blond.vercel.app",
+        "https://careersync-ai-blond.vercel.app/",
+        "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
