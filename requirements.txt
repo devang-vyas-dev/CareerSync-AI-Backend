@@ -9,3 +9,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 requests
+pydantic
+pydantic-settings
+email-validator
