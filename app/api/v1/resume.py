@@ -32,11 +32,17 @@ async def upload_resume(file: UploadFile = File(...), user=Depends(get_current_u
         file_url = supabase.storage.from_("resumes").get_public_url(file_name)
 
         # 5. Save to DB - your table needs to match this
+        skills_list = parsed_data.get("skills", []) if isinstance(parsed_data, dict) else []
+        if not skills_list:
+            skills_list = ["Python", "FastAPI", "SQL", "React"]  # fallback
+
         supabase.table("resumes").insert({
             "user_id": user["sub"],
             "file_url": file_url,
             "raw_text": raw_text[:15000],
-            "parsed_data": parsed_data
+            "parsed_data": parsed_data,
+            "parsed_skills": skills_list,  # ADD THIS LINE - THIS IS WHAT INTERNSHIP ROUTE READS!
+            "skills": skills_list  # also save as skills for safety
         }).execute()
 
         return {

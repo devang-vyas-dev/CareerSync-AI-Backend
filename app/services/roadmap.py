@@ -1,15 +1,25 @@
 import json
-from typing import List, Dict
+import os
+from typing import List
 from datetime import datetime, timezone
-from app.core.groq_client import get_groq_client
-from app.models.schemas import RoadmapStep, RoadmapResponse, RoadmapRequest, TargetRole
+from dotenv import load_dotenv
+import google.generativeai as genai
+
+from app.models.schemas import RoadmapStep, RoadmapResponse, RoadmapRequest
+
+load_dotenv()
+
 
 def generate_roadmap_service(request: RoadmapRequest, student_id: str) -> RoadmapResponse:
     """
-    Uses Groq API (from your.env GROQ_API_KEY) to generate roadmap
-    for missing_skills -> returns RoadmapResponse as per Navneet's schema
+    Uses Gemini 2.0 Flash (GEMINI_API_KEY from.env)
     """
-    client = get_groq_client()
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not found in.env - please add it")
+
+    genai.configure(api_key=api_key)
 
     missing_skills = request.missing_skills
     target_role = request.target_role.value if hasattr(request.target_role, 'value') else str(request.target_role)
@@ -27,10 +37,10 @@ def generate_roadmap_service(request: RoadmapRequest, student_id: str) -> Roadma
     You are a roadmap generator for career upskilling.
 
     Target Role: {target_role}
-    Missing Skills (user needs to learn): {missing_skills}
+    Missing Skills: {missing_skills}
 
     Create a step-by-step roadmap.
-    Return ONLY valid JSON array of steps like this:
+    Return ONLY valid JSON object with key "roadmap" like this:
     {{
       "roadmap": [
         {{
@@ -49,22 +59,31 @@ def generate_roadmap_service(request: RoadmapRequest, student_id: str) -> Roadma
     }}
 
     Rules:
-    - One step per missing skill (if 3 missing skills -> 3 steps)
+    - One step per missing skill
     - step_no starts from 1
-    - estimated_days: 2-5 days per skill (beginner friendly)
+    - estimated_days: 2-5 days per skill
     - resources: at least 1 youtube + 1 docs/article
-    - Order: basics first, then advanced skills
+    - Order: basics first, then advanced
+    - Return ONLY JSON, no markdown, no backticks
     """
 
     try:
-        completion = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            response_format={"type": "json_object"}
+        model = genai.GenerativeModel(
+            model_name="gemini-3.5-flash-lite",
+            generation_config={
+                "temperature": 0.3,
+                "response_mime_type": "application/json"
+            }
         )
 
-        data = json.loads(completion.choices[0].message.content)
+        response = model.generate_content(prompt)
+
+        # Clean response if it has ```json wrapper
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.strip("`").replace("json", "", 1).strip()
+
+        data = json.loads(text)
         steps_data = data.get("roadmap", [])
 
         roadmap_steps: List[RoadmapStep] = []
@@ -72,7 +91,7 @@ def generate_roadmap_service(request: RoadmapRequest, student_id: str) -> Roadma
 
         for step in steps_data:
             roadmap_steps.append(RoadmapStep(
-                step_no=step.get("step_no", len(roadmap_steps)+1),
+                step_no=step.get("step_no", len(roadmap_steps) + 1),
                 skill=step.get("skill", ""),
                 title=step.get("title", ""),
                 description=step.get("description", ""),
@@ -91,20 +110,20 @@ def generate_roadmap_service(request: RoadmapRequest, student_id: str) -> Roadma
         )
 
     except Exception as e:
-        print(f"Groq failed, using fallback: {e}")
-        # Fallback if Groq fails
+        print(f"Gemini 2.0 Flash failed, using fallback: {e}")
         steps = []
         total = 0
         for i, skill in enumerate(missing_skills):
             days = 3
             total += days
             steps.append(RoadmapStep(
-                step_no=i+1,
+                step_no=i + 1,
                 skill=skill,
                 title=f"Learn {skill} for {target_role}",
                 description=f"Master fundamentals and intermediate concepts of {skill} required for {target_role} role.",
                 resources=[
-                    {"type": "youtube", "title": f"Learn {skill} Full Course", "url": f"https://www.youtube.com/results?search_query=learn+{skill}+for+{target_role}"},
+                    {"type": "youtube", "title": f"Learn {skill} Full Course",
+                     "url": f"https://www.youtube.com/results?search_query=learn+{skill}+for+{target_role}"},
                     {"type": "docs", "title": f"{skill} Documentation", "url": "https://developer.mozilla.org"}
                 ],
                 estimated_days=days,
