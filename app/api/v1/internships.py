@@ -5,23 +5,36 @@ from app.services.matcher import rank_internships, fetch_tech_jobs_free
 
 router = APIRouter(prefix="/internships", tags=["Internships"])
 
-@router.get("/recommendations")
-def get_internship_recommendations(limit: int = Query(4)):
-    try:
-        result = supabase.table("resumes")\
-       .select("*")\
-       .order("created_at", desc=True)\
-       .limit(1)\
-       .execute()
 
-        if not result.data:
-            parsed_skills = ["Python", "FastAPI", "SQL", "React", "PostgreSQL", "Git"]
-        else:
-            # Your table has parsed_skills as jsonb
-            parsed_skills = result.data[0].get("parsed_skills", [])
-            if isinstance(parsed_skills, str):
-                import json
-                parsed_skills = json.loads(parsed_skills)
+def _parse_skills_param(skills: str | None) -> list[str] | None:
+    """'python, fastapi, sql' -> ['Python', 'FastAPI', 'SQL']"""
+    if not skills:
+        return None
+    return [s.strip() for s in skills.split(",") if s.strip()]
+
+
+@router.get("/recommendations")
+def get_internship_recommendations(limit: int = Query(4), skills: str | None = Query(None)):
+    try:
+        # 1. If the frontend passed the logged-in user's skills, use those
+        parsed_skills = _parse_skills_param(skills)
+
+        # 2. Otherwise fall back to the most recently uploaded resume
+        if not parsed_skills:
+            result = supabase.table("resumes")\
+           .select("*")\
+           .order("created_at", desc=True)\
+           .limit(1)\
+           .execute()
+
+            if not result.data:
+                parsed_skills = ["Python", "FastAPI", "SQL", "React", "PostgreSQL", "Git"]
+            else:
+                # Your table has parsed_skills as jsonb
+                parsed_skills = result.data[0].get("parsed_skills", [])
+                if isinstance(parsed_skills, str):
+                    import json
+                    parsed_skills = json.loads(parsed_skills)
 
         ranked = rank_internships(parsed_skills, limit=limit)
 
@@ -33,6 +46,7 @@ def get_internship_recommendations(limit: int = Query(4)):
     except Exception as e:
         import traceback; traceback.print_exc()
         return {"error": str(e), "internships": []}
+
 
 @router.get("/all")
 def get_all_internships(limit: int = 4):

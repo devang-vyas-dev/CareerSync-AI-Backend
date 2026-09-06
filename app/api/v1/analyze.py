@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.models.schemas import AnalyzeRequest, AnalysisResponse, SkillGap, SkillLevel
 from app.core.auth import get_current_user
-from app.core.supabase_client import get_supabase_client
+from app.core.supabase_client import supabase
 from app.services.gap_engine import get_required_skills, calculate_match_score
 from app.core.groq_client import get_groq_client
 from datetime import datetime, timezone
@@ -10,16 +10,19 @@ router = APIRouter()
 
 @router.post("/analyze/{student_id}", response_model=AnalysisResponse)
 async def analyze_student(student_id: str, body: AnalyzeRequest, user=Depends(get_current_user)):
-    supabase = get_supabase_client()
+    # Resumes are stored under the authenticated user's id (resume.py inserts user_id)
+    user_id = user.get("sub") or student_id
 
     # 1. Get latest resume parsed by Devang's upload route
-    res = supabase.table("resumes").select("*").eq("student_id", student_id).order("created_at", desc=True).limit(1).execute()
+    res = supabase.table("resumes").select("*").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
 
     if not res.data:
         raise HTTPException(status_code=404, detail="Resume not found. Upload first via /api/v1/resume/upload")
 
-    parsed = res.data[0].get("parsed_json", {})
+    parsed = res.data[0].get("parsed_data", {}) or res.data[0].get("parsed_json", {})
     user_skills = parsed.get("skills", [])
+    if not user_skills:
+        user_skills = res.data[0].get("parsed_skills", []) or []
 
     # 2. Get required skills for target role
     required = get_required_skills(body.target_role, body.required_skills)
@@ -40,7 +43,6 @@ async def analyze_student(student_id: str, body: AnalyzeRequest, user=Depends(ge
         gaps.append(SkillGap(skill=skill, status="missing", level=SkillLevel.BEGINNER))
 
     # 6. AI Summary via Groq using your.env key
-    client = get_groq_client()
     summary_prompt = f"""
     You are a career coach.
     User skills: {user_skills}
@@ -53,6 +55,7 @@ async def analyze_student(student_id: str, body: AnalyzeRequest, user=Depends(ge
     """
 
     try:
+        client = get_groq_client()
         summary_res = client.chat.completions.create(
             model="qwen/qwen3.6-27b",
             messages=[{"role": "user", "content": summary_prompt}],
